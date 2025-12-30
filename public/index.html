@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مكالمة فيديو P2P</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .setup-screen,
+        .call-screen {
+            background: white;
+            border-radius: 25px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .setup-screen h1 {
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 15px;
+            font-size: 2.5em;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: #4a5568;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 3px solid #e2e8f0;
+            border-radius: 15px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #f7fafc;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 15px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            margin-bottom: 15px;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(245, 87, 108, 0.4);
+        }
+
+        .call-screen {
+            display: none;
+        }
+
+        .videos-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .video-wrapper {
+            position: relative;
+            background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);
+            border-radius: 20px;
+            overflow: hidden;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .video-wrapper:hover {
+            transform: scale(1.02);
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .video-label {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 10px;
+        }
+
+        .control-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .control-btn:hover {
+            transform: scale(1.15);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-btn:active {
+            transform: scale(1.05);
+        }
+
+        .btn-toggle {
+            background: linear-gradient(135deg, #4299e1 0%, #667eea 100%);
+            color: white;
+        }
+
+        .btn-toggle.active {
+            background: linear-gradient(135deg, #fc8181 0%, #e53e3e 100%);
+        }
+
+        .btn-end {
+            background: linear-gradient(135deg, #fc8181 0%, #e53e3e 100%);
+            color: white;
+        }
+
+        .btn-end:hover {
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 15px;
+            padding: 15px;
+            background: linear-gradient(135deg, #e6fffa 0%, #b2f5ea 100%);
+            border-radius: 15px;
+            color: #234e52;
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+
+        .connection-quality {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .quality-indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #48bb78;
+            box-shadow: 0 0 10px rgba(72, 187, 120, 0.5);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.2);
+                opacity: 0.8;
+            }
+        }
+
+        .info-card {
+            margin-top: 25px;
+            padding: 20px;
+            background: linear-gradient(135deg, #fef5e7 0%, #fce4ec 100%);
+            border-radius: 20px;
+            border-left: 5px solid #f093fb;
+        }
+
+        .info-card h3 {
+            margin-bottom: 12px;
+            color: #744210;
+            font-size: 1.1em;
+        }
+
+        .info-card ul {
+            padding-left: 25px;
+            color: #744210;
+            line-height: 1.8;
+        }
+
+        .info-card ul li {
+            margin-bottom: 5px;
+        }
+
+        .preview-container {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .preview-container .video-wrapper {
+            max-width: 600px;
+            margin: 0 auto 15px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .media-status-container {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .media-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 25px;
+            font-size: 13px;
+            font-weight: 700;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s ease;
+            animation: statusFadeIn 0.4s ease-out;
+        }
+
+        @keyframes statusFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8) translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .media-badge.enabled {
+            background: linear-gradient(135deg, rgba(72, 187, 120, 0.95) 0%, rgba(56, 161, 105, 0.95) 100%);
+            color: white;
+        }
+
+        .media-badge.disabled {
+            background: linear-gradient(135deg, rgba(252, 129, 129, 0.95) 0%, rgba(229, 62, 62, 0.95) 100%);
+            color: white;
+        }
+
+        .media-badge .status-icon {
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .media-badge .status-text {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            .videos-container {
+                grid-template-columns: 1fr;
+            }
+
+            .setup-screen,
+            .call-screen {
+                padding: 25px;
+            }
+
+            .setup-screen h1 {
+                font-size: 2em;
+            }
+
+            .control-btn {
+                width: 60px;
+                height: 60px;
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Setup Screen -->
+        <div class="setup-screen" id="setupScreen">
+            <h1>🎥 مرحباً بك في محادثة الفيديو!</h1>
+            <p class="subtitle">تواصل وجهاً لوجه مع أي شخص، في أي مكان 🌍</p>
+
+            <!-- Camera Preview -->
+            <div class="preview-container">
+                <div class="video-wrapper">
+                    <video id="previewVideo" autoplay muted playsinline></video>
+                    <div class="video-label">📹 معاينة الكاميرا</div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="requestPermissions()" id="permissionBtn">
+                🎥 تفعيل الكاميرا والميكروفون
+            </button>
+            <br><br>
+
+            <div class="input-group" id="cameraSelectGroup" style="display: none;">
+                <label for="cameraSelect">📹 اختر الكاميرا:</label>
+                <select id="cameraSelect" onchange="switchCamera()"
+                    style="width: 100%; padding: 15px 20px; border: 3px solid #e2e8f0; border-radius: 15px; font-size: 16px; background: #f7fafc; cursor: pointer;">
+                    <option value="">جاري التحميل...</option>
+                </select>
+            </div>
+            <br>
+
+            <div class="input-group">
+                <label for="roomId">💬 معرف الغرفة (شارك هذا الرمز مع صديقك!):</label>
+                <input type="text" id="roomId" placeholder="أدخل رمز الغرفة أو قم بإنشاء واحد جديد">
+            </div>
+            <button class="btn btn-secondary" onclick="generateRoomId()">✨ إنشاء رمز غرفة عشوائي</button>
+            <button class="btn btn-primary" onclick="joinCall()" id="joinBtn" disabled
+                style="opacity: 0.5; cursor: not-allowed;">🚀 بدء مكالمة الفيديو</button>
+
+            <div class="info-card">
+                <h3>🔒 خصوصيتك محمية</h3>
+                <ul>
+                    <li>🛡️ اتصال مشفر من طرف إلى طرف</li>
+                    <li>🔗 اتصال مباشر - لا يتم التسجيل على الخادم</li>
+                    <li>📊 جودة ذكية تتكيف مع سرعة الاتصال</li>
+                    <li>✨ صوت وفيديو فائق الوضوح</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Call Screen -->
+        <div class="call-screen" id="callScreen">
+            <div class="status" id="status">🔄 جاري الاتصال بصديقك...</div>
+
+            <div style="text-align: center; margin-bottom: 15px;">
+                <button class="btn btn-secondary" onclick="copySessionLink()" id="copyLinkBtn"
+                    style="max-width: 300px; margin: 0 auto; padding: 12px;">
+                    📋 نسخ رابط الجلسة
+                </button>
+            </div>
+
+            <div class="connection-quality">
+                <span class="quality-indicator" id="qualityIndicator"></span>
+                <span id="qualityText">📶 جودة الاتصال: جاري الفحص...</span>
+            </div>
+
+            <div class="input-group" id="cameraSelectGroupCall"
+                style="display: none; max-width: 400px; margin: 0 auto 20px;">
+                <label for="cameraSelectCall">📹 تبديل الكاميرا:</label>
+                <select id="cameraSelectCall" onchange="switchCameraInCall()"
+                    style="width: 100%; padding: 12px 15px; border: 3px solid #e2e8f0; border-radius: 15px; font-size: 14px; background: #f7fafc; cursor: pointer;">
+                    <option value="">اختر كاميرا...</option>
+                </select>
+            </div>
+
+            <div class="videos-container">
+                <div class="video-wrapper">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                    <div class="video-label">👤 أنت</div>
+                </div>
+                <div class="video-wrapper">
+                    <video id="remoteVideo" autoplay playsinline></video>
+                    <div class="video-label">👥 صديقك</div>
+                    <div class="media-status-container" id="remoteStatusContainer">
+                        <div class="media-badge enabled" id="remoteVideoBadge">
+                            <span class="status-icon">📹</span>
+                            <span class="status-text">كاميرا</span>
+                        </div>
+                        <div class="media-badge enabled" id="remoteAudioBadge">
+                            <span class="status-icon">🎤</span>
+                            <span class="status-text">ميكروفون</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="control-btn btn-toggle" id="videoBtn" onclick="toggleVideo()"
+                    title="تبديل الفيديو">📹</button>
+                <button class="control-btn btn-toggle" id="audioBtn" onclick="toggleAudio()"
+                    title="تبديل الصوت">🎤</button>
+                <button class="control-btn btn-end" onclick="endCall()" title="إنهاء المكالمة">📞</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
+    <script>
+        const socket = io();
+        let localStream;
+        let peer;
+        let roomId;
+        let isVideoEnabled = true;
+        let isAudioEnabled = true;
+        let permissionsGranted = false;
+        let availableCameras = [];
+        let currentCameraId = null;
+        let remoteVideoEnabled = true;
+        let remoteAudioEnabled = true;
+        let hasDisconnected = false;
+
+        function generateRoomId() {
+            const id = Math.random().toString(36).substring(2, 15);
+            document.getElementById('roomId').value = id;
+        }
+
+        function copySessionLink() {
+            const sessionLink = `${window.location.origin}${window.location.pathname}?code=${roomId}`;
+
+            // نسخ الرابط إلى الحافظة
+            navigator.clipboard.writeText(sessionLink).then(() => {
+                // تغيير نص الزر مؤقتاً للتأكيد
+                const btn = document.getElementById('copyLinkBtn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ تم النسخ!';
+                btn.style.background = 'linear-gradient(135deg, #48bb78 0%, #38a169 100%)';
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+                }, 2000);
+            }).catch(err => {
+                console.error('Error copying link:', err);
+                alert('تعذر نسخ الرابط. يرجى المحاولة مرة أخرى.');
+            });
+        }
+
+        async function getCameras() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                availableCameras = devices.filter(device => device.kind === 'videoinput');
+
+                const cameraSelect = document.getElementById('cameraSelect');
+                cameraSelect.innerHTML = '';
+
+                if (availableCameras.length > 0) {
+                    availableCameras.forEach((camera, index) => {
+                        const option = document.createElement('option');
+                        option.value = camera.deviceId;
+                        option.text = camera.label || `كاميرا ${index + 1}`;
+                        cameraSelect.appendChild(option);
+                    });
+
+                    if (availableCameras.length > 1) {
+                        document.getElementById('cameraSelectGroup').style.display = 'block';
+                    }
+
+                    // تحديث قائمة الكاميرات في شاشة المكالمة أيضاً
+                    updateCallScreenCameraList();
+                }
+            } catch (error) {
+                console.error('Error getting cameras:', error);
+            }
+        }
+
+        function updateCallScreenCameraList() {
+            const cameraSelectCall = document.getElementById('cameraSelectCall');
+            if (cameraSelectCall && availableCameras.length > 0) {
+                cameraSelectCall.innerHTML = '';
+
+                availableCameras.forEach((camera, index) => {
+                    const option = document.createElement('option');
+                    option.value = camera.deviceId;
+                    option.text = camera.label || `كاميرا ${index + 1}`;
+                    cameraSelectCall.appendChild(option);
+                });
+
+                if (currentCameraId) {
+                    cameraSelectCall.value = currentCameraId;
+                }
+
+                if (availableCameras.length > 1) {
+                    document.getElementById('cameraSelectGroupCall').style.display = 'block';
+                }
+            }
+        }
+
+        async function switchCameraInCall() {
+            const selectedCameraId = document.getElementById('cameraSelectCall').value;
+            document.getElementById('cameraSelect').value = selectedCameraId;
+            await switchCamera();
+        }
+
+        async function switchCamera() {
+            const selectedCameraId = document.getElementById('cameraSelect').value;
+            if (selectedCameraId && localStream) {
+                currentCameraId = selectedCameraId;
+
+                // إيقاف المسارات الحالية
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.stop();
+                }
+
+                // الحصول على مسار فيديو جديد من الكاميرا المحددة
+                try {
+                    const newStream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            deviceId: { exact: selectedCameraId },
+                            width: { ideal: 640, max: 1920 },
+                            height: { ideal: 360, max: 1080 },
+                            frameRate: { ideal: 15, max: 30 }
+                        }
+                    });
+
+                    const newVideoTrack = newStream.getVideoTracks()[0];
+
+                    // استبدال المسار القديم بالجديد
+                    localStream.removeTrack(videoTrack);
+                    localStream.addTrack(newVideoTrack);
+
+                    // تحديث معاينة الفيديو
+                    document.getElementById('previewVideo').srcObject = localStream;
+
+                    // تحديث الاتصال إذا كان موجوداً
+                    if (peer && peer._pc) {
+                        const sender = peer._pc.getSenders().find(s => s.track && s.track.kind === 'video');
+                        if (sender) {
+                            sender.replaceTrack(newVideoTrack);
+                        }
+                    }
+
+                    // تحديث الفيديو المحلي في شاشة المكالمة
+                    const localVideo = document.getElementById('localVideo');
+                    if (localVideo.srcObject) {
+                        localVideo.srcObject = localStream;
+                    }
+                } catch (error) {
+                    console.error('Error switching camera:', error);
+                    alert('تعذر تبديل الكاميرا. يرجى المحاولة مرة أخرى.');
+                }
+            }
+        }
+
+        async function requestPermissions() {
+            try {
+                // Request camera and microphone permissions
+                const constraints = {
+                    video: {
+                        width: { ideal: 640, max: 1920 },
+                        height: { ideal: 360, max: 1080 },
+                        frameRate: { ideal: 15, max: 30 }
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                };
+
+                if (currentCameraId) {
+                    constraints.video.deviceId = { exact: currentCameraId };
+                }
+
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                // Show preview
+                document.getElementById('previewVideo').srcObject = localStream;
+
+                // الحصول على قائمة الكاميرات المتاحة
+                await getCameras();
+
+                // تحديد الكاميرا الحالية في القائمة
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    const settings = videoTrack.getSettings();
+                    if (settings.deviceId) {
+                        document.getElementById('cameraSelect').value = settings.deviceId;
+                        currentCameraId = settings.deviceId;
+                    }
+                }
+
+                // Update UI
+                permissionsGranted = true;
+                document.getElementById('permissionBtn').textContent = '✅ الكاميرا والميكروفون جاهزان!';
+                document.getElementById('permissionBtn').style.background = 'linear-gradient(135deg, #48bb78 0%, #38a169 100%)';
+                document.getElementById('permissionBtn').disabled = true;
+
+                // Enable join button
+                const joinBtn = document.getElementById('joinBtn');
+                joinBtn.disabled = false;
+                joinBtn.style.opacity = '1';
+                joinBtn.style.cursor = 'pointer';
+
+                // إذا كان هناك كود في الرابط، اتصل تلقائياً
+                const urlParams = new URLSearchParams(window.location.search);
+                const codeFromUrl = urlParams.get('code');
+                const hasManuallyLeft = sessionStorage.getItem('hasLeftCall');
+
+                if (codeFromUrl && document.getElementById('roomId').value && !hasManuallyLeft) {
+                    setTimeout(() => {
+                        joinCall();
+                    }, 500);
+                }
+
+            } catch (error) {
+                console.error('Error accessing media devices:', error);
+                alert('تعذر الوصول إلى الكاميرا/الميكروفون. يرجى التحقق من أذونات المتصفح والمحاولة مرة أخرى.');
+            }
+        }
+
+        async function joinCall() {
+            roomId = document.getElementById('roomId').value.trim();
+            if (!roomId) {
+                alert('⚠️ يرجى إدخال رمز الغرفة للمتابعة!');
+                return;
+            }
+
+            if (!permissionsGranted) {
+                alert('⚠️ يرجى تفعيل الكاميرا والميكروفون أولاً!');
+                return;
+            }
+
+            // Reset disconnection flag when starting new call
+            hasDisconnected = false;
+
+            // Clear the manual leave flag when intentionally joining
+            sessionStorage.removeItem('hasLeftCall');
+
+            try {
+                // Use the already granted stream
+                document.getElementById('localVideo').srcObject = localStream;
+
+                // Switch to call screen
+                document.getElementById('setupScreen').style.display = 'none';
+                document.getElementById('callScreen').style.display = 'block';
+
+                // Join room
+                socket.emit('join-room', roomId, socket.id);
+
+                // Handle room full
+                socket.on('room-full', () => {
+                    alert('😕 الغرفة ممتلئة! الحد الأقصى شخصان يمكنهما الانضمام لهذه المكالمة.');
+                    endCall();
+                });
+
+                // When another user connects
+                socket.on('user-connected', (userId) => {
+                    if (hasDisconnected) {
+                        console.log('Ignoring reconnection attempt - user has disconnected');
+                        return;
+                    }
+                    console.log('User connected:', userId);
+                    document.getElementById('status').textContent = '🎉 صديقك ينضم الآن...';
+                    initializePeer(true);
+                });
+
+                // Handle incoming signals
+                socket.on('signal', (data) => {
+                    if (hasDisconnected) {
+                        console.log('Ignoring signal - user has disconnected');
+                        return;
+                    }
+                    if (data.userId !== socket.id) {
+                        if (!peer) {
+                            initializePeer(false);
+                        }
+                        peer.signal(data.signal);
+                    }
+                });
+
+                // Handle user disconnection
+                socket.on('user-disconnected', () => {
+                    document.getElementById('status').textContent = '👋 غادر صديقك المكالمة';
+                    if (peer) {
+                        peer.destroy();
+                        peer = null;
+                    }
+                    hasDisconnected = true;
+                });
+
+                // Handle session ended by creator
+                socket.on('session-ended', () => {
+                    alert('⚠️ تم إنهاء الجلسة من قبل منشئها');
+                    hasDisconnected = true;
+                    sessionStorage.setItem('hasLeftCall', 'true');
+                    endCall();
+                });
+
+                // Handle remote user media status changes
+                socket.on('media-status', (data) => {
+                    if (data.userId !== socket.id) {
+                        remoteVideoEnabled = data.video;
+                        remoteAudioEnabled = data.audio;
+                        updateRemoteStatus();
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error accessing media devices:', error);
+                alert('⚠️ تعذر الوصول إلى الكاميرا/الميكروفون. يرجى التحقق من الأذونات والمحاولة مرة أخرى.');
+            }
+        }
+
+        function initializePeer(initiator) {
+            peer = new SimplePeer({
+                initiator: initiator,
+                stream: localStream,
+                trickle: false,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            });
+
+            // إرسال حالة الوسائط الأولية
+            sendMediaStatus();
+
+            peer.on('signal', (data) => {
+                socket.emit('signal', { signal: data });
+            });
+
+            peer.on('stream', (stream) => {
+                document.getElementById('remoteVideo').srcObject = stream;
+                document.getElementById('status').textContent = '✨ تم الاتصال! استمتع بمكالمتك';
+                monitorConnectionQuality();
+            });
+
+            peer.on('error', (err) => {
+                console.error('Peer error:', err);
+                document.getElementById('status').textContent = '⚠️ مشكلة في الاتصال - جاري إعادة المحاولة...';
+            });
+
+            // إرسال الحالة الجديدة للمستخدم الآخر
+            sendMediaStatus();
+        }
+
+        function sendMediaStatus() {
+            if (roomId) {
+                socket.emit('media-status', {
+                    roomId: roomId,
+                    video: isVideoEnabled,
+                    audio: isAudioEnabled
+                });
+            }
+        }
+
+        function updateRemoteStatus() {
+            const videoBadge = document.getElementById('remoteVideoBadge');
+            const audioBadge = document.getElementById('remoteAudioBadge');
+
+            if (videoBadge) {
+                if (remoteVideoEnabled) {
+                    videoBadge.classList.remove('disabled');
+                    videoBadge.classList.add('enabled');
+                    videoBadge.querySelector('.status-icon').textContent = '📹';
+                } else {
+                    videoBadge.classList.remove('enabled');
+                    videoBadge.classList.add('disabled');
+                    videoBadge.querySelector('.status-icon').textContent = '🚫';
+                }
+            }
+
+            if (audioBadge) {
+                if (remoteAudioEnabled) {
+                    audioBadge.classList.remove('disabled');
+                    audioBadge.classList.add('enabled');
+                    audioBadge.querySelector('.status-icon').textContent = '🎤';
+                } else {
+                    audioBadge.classList.remove('enabled');
+                    audioBadge.classList.add('disabled');
+                    audioBadge.querySelector('.status-icon').textContent = '🔇';
+                }
+            }
+        }
+
+        function toggleVideo() {
+            isVideoEnabled = !isVideoEnabled;
+            localStream.getVideoTracks()[0].enabled = isVideoEnabled;
+            const btn = document.getElementById('videoBtn');
+            btn.classList.toggle('active');
+            btn.textContent = isVideoEnabled ? '📹' : '🚫';
+
+            // إرسال الحالة الجديدة للمستخدم الآخر
+            sendMediaStatus();
+        }
+
+        function toggleAudio() {
+            isAudioEnabled = !isAudioEnabled;
+            localStream.getAudioTracks()[0].enabled = isAudioEnabled;
+            const btn = document.getElementById('audioBtn');
+            btn.classList.toggle('active');
+            btn.textContent = isAudioEnabled ? '🎤' : '🔇';
+
+            // إرسال الحالة الجديدة للمستخدم الآخر
+            sendMediaStatus();
+        }
+
+        function endCall() {
+            hasDisconnected = true;
+
+            // Mark that user has manually left
+            sessionStorage.setItem('hasLeftCall', 'true');
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            if (peer) {
+                peer.destroy();
+                peer = null;
+            }
+            socket.disconnect();
+
+            // Remove query parameters from URL before reload
+            const url = new URL(window.location);
+            url.search = '';
+            window.history.replaceState({}, '', url);
+
+            location.reload();
+        }
+
+        function monitorConnectionQuality() {
+            if (!peer || !peer._pc) return;
+
+            setInterval(async () => {
+                try {
+                    const stats = await peer._pc.getStats();
+                    let bytesReceived = 0;
+
+                    stats.forEach(report => {
+                        if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
+                            bytesReceived = report.bytesReceived;
+                        }
+                    });
+
+                    // Estimate bandwidth and adjust quality
+                    const bandwidth = bytesReceived * 8 / 1000; // kbps
+                    updateQualityIndicator(bandwidth);
+
+                } catch (error) {
+                    console.error('Stats error:', error);
+                }
+            }, 2000);
+        }
+
+        function updateQualityIndicator(bandwidth) {
+            const indicator = document.getElementById('qualityIndicator');
+            const text = document.getElementById('qualityText');
+
+            if (bandwidth > 1000) {
+                indicator.style.background = '#48bb78';
+                indicator.style.boxShadow = '0 0 10px rgba(72, 187, 120, 0.5)';
+                text.textContent = '📶 جودة الاتصال: ممتازة';
+            } else if (bandwidth > 500) {
+                indicator.style.background = '#ecc94b';
+                indicator.style.boxShadow = '0 0 10px rgba(236, 201, 75, 0.5)';
+                text.textContent = '📶 جودة الاتصال: جيدة';
+            } else {
+                indicator.style.background = '#f56565';
+                indicator.style.boxShadow = '0 0 10px rgba(245, 101, 101, 0.5)';
+                text.textContent = '📶 جودة الاتصال: ضعيفة';
+            }
+        }
+
+        // تفعيل الكاميرا والميكروفون تلقائياً عند تحميل الصفحة
+        window.addEventListener('DOMContentLoaded', () => {
+            // التحقق من وجود كود في الرابط
+            const urlParams = new URLSearchParams(window.location.search);
+            const codeFromUrl = urlParams.get('code');
+
+            if (codeFromUrl) {
+                document.getElementById('roomId').value = codeFromUrl;
+            }
+
+            requestPermissions();
+        });
+    </script>
+</body>
+
+</html>
