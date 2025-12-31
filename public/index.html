@@ -515,6 +515,10 @@
         let remoteVideoEnabled = true;
         let remoteAudioEnabled = true;
         let hasDisconnected = false;
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 10;
+        let reconnectInterval = null;
+        let isReconnecting = false;
 
         function generateRoomId() {
             const id = Math.random().toString(36).substring(2, 15);
@@ -742,6 +746,16 @@
                 document.getElementById('setupScreen').style.display = 'none';
                 document.getElementById('callScreen').style.display = 'block';
 
+                // Remove all previous socket listeners to prevent duplicates
+                socket.off('room-full');
+                socket.off('user-connected');
+                socket.off('signal');
+                socket.off('user-disconnected');
+                socket.off('media-status');
+                socket.off('peer-reconnect-request');
+                socket.off('disconnect');
+                socket.off('connect');
+
                 // Join room
                 socket.emit('join-room', roomId, socket.id);
 
@@ -753,45 +767,64 @@
 
                 // When another user connects
                 socket.on('user-connected', (userId) => {
-                    if (hasDisconnected) {
-                        console.log('Ignoring reconnection attempt - user has disconnected');
-                        return;
-                    }
                     console.log('User connected:', userId);
-                    document.getElementById('status').textContent = '🎉 صديقك ينضم الآن...';
-                    initializePeer(true);
+
+                    // Stop any reconnection attempts
+                    stopReconnectionAttempts();
+
+                    // Only create new peer if we don't have a working connection
+                    // This prevents kicking out the stable user when the other user reconnects
+                    if (!peer || peer.destroyed) {
+                        console.log('Creating new peer as initiator');
+                        document.getElementById('status').textContent = '🎉 صديقك ينضم الآن...';
+                        initializePeer(true);
+                    } else {
+                        console.log('Peer already exists and is active, keeping existing connection');
+                        document.getElementById('status').textContent = '✨ تم الاتصال! استمتع بمكالمتك';
+                    }
                 });
 
                 // Handle incoming signals
                 socket.on('signal', (data) => {
-                    if (hasDisconnected) {
-                        console.log('Ignoring signal - user has disconnected');
-                        return;
-                    }
+                    // Accept signals from any user except ourselves
                     if (data.userId !== socket.id) {
+                        console.log('Received signal from:', data.userId);
                         if (!peer) {
+                            console.log('No peer exists, creating as non-initiator');
                             initializePeer(false);
                         }
-                        peer.signal(data.signal);
+                        if (peer) {
+                            try {
+                                peer.signal(data.signal);
+                            } catch (err) {
+                                console.error('Error processing signal:', err);
+                            }
+                        }
                     }
                 });
 
                 // Handle user disconnection
                 socket.on('user-disconnected', () => {
-                    document.getElementById('status').textContent = '👋 غادر صديقك المكالمة';
+                    document.getElementById('status').textContent = '👋 غادر صديقك المكالمة - في انتظار إعادة الاتصال...';
+
+                    // Clear remote video
+                    const remoteVideo = document.getElementById('remoteVideo');
+                    if (remoteVideo.srcObject) {
+                        remoteVideo.srcObject = null;
+                    }
+
+                    // Destroy peer but keep the room active for reconnection
                     if (peer) {
                         peer.destroy();
                         peer = null;
                     }
-                    hasDisconnected = true;
-                });
 
-                // Handle session ended by creator
-                socket.on('session-ended', () => {
-                    alert('⚠️ تم إنهاء الجلسة من قبل منشئها');
-                    hasDisconnected = true;
-                    sessionStorage.setItem('hasLeftCall', 'true');
-                    endCall();
+                    // Reset ping display
+                    document.getElementById('pingText').textContent = '-- ms';
+                    document.getElementById('pingText').style.color = '#4a5568';
+
+                    // Start reconnection attempts
+                    startReconnectionAttempts();
                 });
 
                 // Handle remote user media status changes
@@ -800,6 +833,57 @@
                         remoteVideoEnabled = data.video;
                         remoteAudioEnabled = data.audio;
                         updateRemoteStatus();
+                    }
+                });
+
+                // Handle reconnection request from peer
+                socket.on('peer-reconnect-request', (userId) => {
+                    console.log('Peer requesting reconnection:', userId);
+                    if (!peer && localStream) {
+                        // Recreate peer as initiator
+                        initializePeer(true);
+                    }
+                });
+
+                // Handle socket disconnection (internet lost)
+                socket.on('disconnect', (reason) => {
+                    console.log('Socket disconnected:', reason);
+                    if (!hasDisconnected) {
+                        document.getElementById('status').textContent = '⚠️ فقد الاتصال بالإنترنت - جاري إعادة المحاولة...';
+
+                        // Destroy peer
+                        if (peer) {
+                            peer.destroy();
+                            peer = null;
+                        }
+
+                        // Clear remote video
+                        const remoteVideo = document.getElementById('remoteVideo');
+                        if (remoteVideo.srcObject) {
+                            remoteVideo.srcObject = null;
+                        }
+                    }
+                });
+
+                // Handle socket reconnection (internet restored)
+                socket.on('connect', () => {
+                    console.log('Socket reconnected with new ID:', socket.id);
+                    if (!hasDisconnected && roomId && permissionsGranted) {
+                        document.getElementById('status').textContent = '🔄 تم استعادة الاتصال - جاري إعادة الانضمام للغرفة...';
+
+                        // Destroy old peer if exists
+                        if (peer) {
+                            peer.destroy();
+                            peer = null;
+                        }
+
+                        // Rejoin the room with new socket ID
+                        socket.emit('join-room', roomId, socket.id);
+
+                        // Small delay before starting reconnection attempts
+                        setTimeout(() => {
+                            startReconnectionAttempts();
+                        }, 1000);
                     }
                 });
 
@@ -832,12 +916,35 @@
             peer.on('stream', (stream) => {
                 document.getElementById('remoteVideo').srcObject = stream;
                 document.getElementById('status').textContent = '✨ تم الاتصال! استمتع بمكالمتك';
+
+                // Stop reconnection attempts on successful connection
+                stopReconnectionAttempts();
+
                 monitorConnectionQuality();
             });
 
             peer.on('error', (err) => {
                 console.error('Peer error:', err);
                 document.getElementById('status').textContent = '⚠️ مشكلة في الاتصال - جاري إعادة المحاولة...';
+
+                // Attempt to reconnect on error
+                if (!isReconnecting) {
+                    setTimeout(() => {
+                        if (peer) {
+                            peer.destroy();
+                            peer = null;
+                        }
+                        startReconnectionAttempts();
+                    }, 2000);
+                }
+            });
+
+            peer.on('close', () => {
+                console.log('Peer connection closed');
+                if (!hasDisconnected && !isReconnecting) {
+                    document.getElementById('status').textContent = '⚠️ انقطع الاتصال - جاري إعادة الاتصال...';
+                    startReconnectionAttempts();
+                }
             });
 
             // إرسال الحالة الجديدة للمستخدم الآخر
@@ -905,8 +1012,50 @@
             sendMediaStatus();
         }
 
+        function startReconnectionAttempts() {
+            if (isReconnecting || hasDisconnected) return;
+
+            isReconnecting = true;
+            reconnectAttempts = 0;
+
+            reconnectInterval = setInterval(() => {
+                if (reconnectAttempts >= maxReconnectAttempts) {
+                    clearInterval(reconnectInterval);
+                    isReconnecting = false;
+                    document.getElementById('status').textContent = '❌ فشل إعادة الاتصال. يرجى تحديث الصفحة أو إعادة الانضمام.';
+                    return;
+                }
+
+                reconnectAttempts++;
+                document.getElementById('status').textContent = `🔄 محاولة إعادة الاتصال (${reconnectAttempts}/${maxReconnectAttempts})...`;
+
+                // Check if socket is connected
+                if (!socket.connected) {
+                    console.log('Socket disconnected, waiting for reconnection...');
+                    // Socket.IO will automatically try to reconnect
+                    return;
+                }
+
+                // Socket is connected, try to signal reconnection
+                if (roomId && localStream) {
+                    console.log(`Reconnection attempt ${reconnectAttempts} - requesting peer reconnection`);
+                    socket.emit('request-reconnect', { roomId: roomId });
+                }
+            }, 3000);
+        }
+
+        function stopReconnectionAttempts() {
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
+            isReconnecting = false;
+            reconnectAttempts = 0;
+        }
+
         function endCall() {
             hasDisconnected = true;
+            stopReconnectionAttempts();
 
             // Mark that user has manually left
             sessionStorage.setItem('hasLeftCall', 'true');

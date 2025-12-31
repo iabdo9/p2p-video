@@ -16,6 +16,12 @@ io.on('connection', (socket) => {
 
     // Join a room
     socket.on('join-room', (roomId, userId) => {
+        // Leave any previous rooms this socket was in
+        const previousRooms = Array.from(socket.rooms).filter(r => r !== socket.id);
+        previousRooms.forEach(prevRoom => {
+            socket.leave(prevRoom);
+        });
+
         socket.join(roomId);
 
         // Initialize room if it doesn't exist
@@ -28,18 +34,24 @@ io.on('connection', (socket) => {
 
         const room = rooms.get(roomId);
 
-        // Check if room is full (max 2 users)
-        if (room.size >= 2) {
+        // Check if room is full (max 2 users) - but allow rejoining
+        if (room.size >= 2 && !room.has(userId)) {
             socket.emit('room-full');
             return;
         }
 
+        // Add user if not already in room
+        const isRejoining = room.has(userId);
         room.add(userId);
 
         // Notify others in the room
         socket.to(roomId).emit('user-connected', userId);
 
-        console.log(`User ${userId} joined room ${roomId}`);
+        if (isRejoining) {
+            console.log(`User ${userId} rejoined room ${roomId}`);
+        } else {
+            console.log(`User ${userId} joined room ${roomId}`);
+        }
 
         // Handle signaling for WebRTC
         socket.on('signal', (data) => {
@@ -58,38 +70,25 @@ io.on('connection', (socket) => {
             });
         });
 
+        // Handle reconnection request
+        socket.on('request-reconnect', (data) => {
+            console.log(`User ${userId} requesting reconnection in room ${roomId}`);
+            socket.to(roomId).emit('peer-reconnect-request', userId);
+        });
+
         // Handle user disconnection
         socket.on('disconnect', () => {
-            const isCreator = roomCreators.get(roomId) === userId;
+            // Remove user from room
+            room.delete(userId);
 
-            // If the creator disconnects, end the session for everyone
-            if (isCreator) {
-                console.log(`Room creator ${userId} disconnected. Closing room ${roomId}`);
+            // Notify others in the room
+            socket.to(roomId).emit('user-disconnected', userId);
 
-                // Notify OTHER users in the room that the session is ending (not the creator)
-                socket.to(roomId).emit('session-ended');
-
-                // Clean up the room
-                room.delete(userId);
+            // Clean up empty rooms
+            if (room.size === 0) {
                 rooms.delete(roomId);
                 roomCreators.delete(roomId);
-
-                // Get all sockets in the room and force them to leave
-                const socketsInRoom = io.sockets.adapter.rooms.get(roomId);
-                if (socketsInRoom) {
-                    socketsInRoom.forEach(socketId => {
-                        io.sockets.sockets.get(socketId)?.leave(roomId);
-                    });
-                }
-            } else {
-                // Regular user disconnection
-                room.delete(userId);
-
-                if (room.size === 0) {
-                    rooms.delete(roomId);
-                    roomCreators.delete(roomId);
-                }
-                socket.to(roomId).emit('user-disconnected', userId);
+                console.log(`Room ${roomId} is empty and has been deleted`);
             }
 
             console.log(`User ${userId} left room ${roomId}`);
