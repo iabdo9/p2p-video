@@ -457,6 +457,8 @@
             <div class="connection-quality">
                 <span class="quality-indicator" id="qualityIndicator"></span>
                 <span id="qualityText">📶 جودة الاتصال: جاري الفحص...</span>
+                <span style="margin-right: 15px; padding-right: 15px; border-right: 2px solid #e2e8f0;">⏱️ التأخير:
+                    <strong id="pingText">-- ms</strong></span>
             </div>
 
             <div class="input-group" id="cameraSelectGroupCall"
@@ -933,10 +935,15 @@
                 try {
                     const stats = await peer._pc.getStats();
                     let bytesReceived = 0;
+                    let currentRtt = 0;
 
                     stats.forEach(report => {
                         if (report.type === 'inbound-rtp' && report.mediaType === 'video') {
                             bytesReceived = report.bytesReceived;
+                        }
+                        // Get RTT (Round Trip Time) from candidate-pair stats
+                        if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                            currentRtt = report.currentRoundTripTime;
                         }
                     });
 
@@ -944,10 +951,26 @@
                     const bandwidth = bytesReceived * 8 / 1000; // kbps
                     updateQualityIndicator(bandwidth);
 
+                    // Update ping display
+                    if (currentRtt !== undefined && currentRtt > 0) {
+                        const pingMs = Math.round(currentRtt * 1000);
+                        document.getElementById('pingText').textContent = `${pingMs} ms`;
+
+                        // Color code the ping
+                        const pingElement = document.getElementById('pingText');
+                        if (pingMs < 100) {
+                            pingElement.style.color = '#48bb78';
+                        } else if (pingMs < 200) {
+                            pingElement.style.color = '#ecc94b';
+                        } else {
+                            pingElement.style.color = '#f56565';
+                        }
+                    }
+
                 } catch (error) {
                     console.error('Stats error:', error);
                 }
-            }, 2000);
+            }, 100);
         }
 
         function updateQualityIndicator(bandwidth) {
