@@ -520,6 +520,13 @@
         let reconnectInterval = null;
         let isReconnecting = false;
 
+        // Generate a persistent user ID that survives reconnection
+        let myUserId = sessionStorage.getItem('myUserId');
+        if (!myUserId) {
+            myUserId = 'user_' + Math.random().toString(36).substring(2, 15);
+            sessionStorage.setItem('myUserId', myUserId);
+        }
+
         function generateRoomId() {
             const id = Math.random().toString(36).substring(2, 15);
             document.getElementById('roomId').value = id;
@@ -756,8 +763,8 @@
                 socket.off('disconnect');
                 socket.off('connect');
 
-                // Join room
-                socket.emit('join-room', roomId, socket.id);
+                // Join room with persistent user ID
+                socket.emit('join-room', roomId, myUserId);
 
                 // Handle room full
                 socket.on('room-full', () => {
@@ -877,8 +884,8 @@
                             peer = null;
                         }
 
-                        // Rejoin the room with new socket ID
-                        socket.emit('join-room', roomId, socket.id);
+                        // Rejoin the room with persistent user ID
+                        socket.emit('join-room', roomId, myUserId);
 
                         // Small delay before starting reconnection attempts
                         setTimeout(() => {

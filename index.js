@@ -2,7 +2,6 @@ const express = require('express');
 const app = express();
 const server = require('http').Server(app);
 const io = require('socket.io')(server);
-const path = require('path');
 
 app.use(express.static('public'));
 
@@ -10,6 +9,10 @@ app.use(express.static('public'));
 const rooms = new Map();
 // Store room creators
 const roomCreators = new Map();
+// Map socket IDs to user IDs
+const socketToUser = new Map();
+// Map user IDs to socket IDs
+const userToSocket = new Map();
 
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
@@ -21,6 +24,19 @@ io.on('connection', (socket) => {
         previousRooms.forEach(prevRoom => {
             socket.leave(prevRoom);
         });
+
+        // If this user was already connected with a different socket, clean up the old one
+        if (userToSocket.has(userId)) {
+            const oldSocketId = userToSocket.get(userId);
+            if (oldSocketId !== socket.id) {
+                console.log(`User ${userId} reconnecting - cleaning up old socket ${oldSocketId}`);
+                socketToUser.delete(oldSocketId);
+            }
+        }
+
+        // Update the mappings
+        socketToUser.set(socket.id, userId);
+        userToSocket.set(userId, socket.id);
 
         socket.join(roomId);
 
@@ -78,20 +94,29 @@ io.on('connection', (socket) => {
 
         // Handle user disconnection
         socket.on('disconnect', () => {
-            // Remove user from room
-            room.delete(userId);
+            // Get the userId for this socket
+            const disconnectedUserId = socketToUser.get(socket.id);
 
-            // Notify others in the room
-            socket.to(roomId).emit('user-disconnected', userId);
+            if (disconnectedUserId) {
+                // Only remove from room if this is still the active socket for this user
+                if (userToSocket.get(disconnectedUserId) === socket.id) {
+                    room.delete(disconnectedUserId);
+                    userToSocket.delete(disconnectedUserId);
+                }
+                socketToUser.delete(socket.id);
 
-            // Clean up empty rooms
-            if (room.size === 0) {
-                rooms.delete(roomId);
-                roomCreators.delete(roomId);
-                console.log(`Room ${roomId} is empty and has been deleted`);
+                // Notify others in the room
+                socket.to(roomId).emit('user-disconnected', disconnectedUserId);
+
+                // Clean up empty rooms
+                if (room.size === 0) {
+                    rooms.delete(roomId);
+                    roomCreators.delete(roomId);
+                    console.log(`Room ${roomId} is empty and has been deleted`);
+                }
+
+                console.log(`User ${disconnectedUserId} left room ${roomId}`);
             }
-
-            console.log(`User ${userId} left room ${roomId}`);
         });
     });
 });
